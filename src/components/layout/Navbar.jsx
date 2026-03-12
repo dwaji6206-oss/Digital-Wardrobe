@@ -18,7 +18,7 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="glass sticky top-0 z-50 border-b border-gray-200/30">
+    <nav className="glass sticky top-0 z-50 border-b border-gray-200/30 select-none" style={{ cursor: 'default' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">

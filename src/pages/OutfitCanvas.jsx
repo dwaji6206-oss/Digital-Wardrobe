@@ -8,18 +8,22 @@
  * - 保存搭配到数据库
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import SaveOutfitModal from '../components/outfit/SaveOutfitModal';
 import { useClothes } from '../hooks/useClothes';
 import { useOutfits } from '../hooks/useOutfits';
+import { useClothingNames } from '../hooks/useClothingNames';
+import { useClothingColors } from '../hooks/useClothingColors';
 import { Upload, Save, Loader2, CheckCircle } from 'lucide-react';
 
 export default function OutfitCanvas() {
   const navigate = useNavigate();
   const { clothes, loading } = useClothes();
   const { addOutfit, uploadOutfitImage } = useOutfits();
+  const { names } = useClothingNames();
+  const { colors } = useClothingColors();
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -30,6 +34,25 @@ export default function OutfitCanvas() {
   const [isRotating, setIsRotating] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // 筛选状态
+  const [filterName, setFilterName] = useState('');
+  const [filterColor, setFilterColor] = useState('');
+
+  // 筛选后的衣服列表（排除已在画布上的衣服）
+  const filteredClothes = useMemo(() => {
+    // 获取已在画布上的衣服ID集合
+    const canvasClothesIds = new Set(canvasItems.map(item => item.clothingId));
+
+    return clothes.filter(item => {
+      // 排除已在画布上的衣服
+      if (canvasClothesIds.has(item.id)) return false;
+
+      const matchName = !filterName || item.clothing_names?.name === filterName;
+      const matchColor = !filterColor || item.clothing_colors?.name === filterColor;
+      return matchName && matchColor;
+    });
+  }, [clothes, filterName, filterColor, canvasItems]);
 
   // 处理上传模特图片
   function handleModelUpload(e) {
@@ -262,17 +285,47 @@ export default function OutfitCanvas() {
       <Navbar />
       <div className="flex h-[calc(100vh-64px)]">
         {/* 左侧：衣服选择网格 */}
-        <div className="w-56 bg-white/50 backdrop-blur-sm border-r border-gray-200 p-4 overflow-y-auto">
+        <div className="w-56 bg-white/50 backdrop-blur-sm border-r border-gray-200 p-4 overflow-y-auto select-none" style={{ cursor: 'default' }}>
           <h3 className="text-sm font-medium text-gray-500 mb-3">我的衣服</h3>
+
+          {/* 筛选下拉框 */}
+          <div className="space-y-2 mb-4">
+            {/* 名称筛选 */}
+            <select
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+              className="w-full px-2 py-1.5 text-xs bg-white/60 border border-gray-200/50 rounded-lg focus:outline-none focus:border-gray-400"
+            >
+              <option value="">全部名称</option>
+              {names.map(name => (
+                <option key={name.id} value={name.name}>{name.name}</option>
+              ))}
+            </select>
+
+            {/* 颜色筛选 */}
+            <select
+              value={filterColor}
+              onChange={(e) => setFilterColor(e.target.value)}
+              className="w-full px-2 py-1.5 text-xs bg-white/60 border border-gray-200/50 rounded-lg focus:outline-none focus:border-gray-400"
+            >
+              <option value="">全部颜色</option>
+              {colors.map(color => (
+                <option key={color.id} value={color.name}>{color.name}</option>
+              ))}
+            </select>
+          </div>
+
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="animate-spin text-gray-400" size={24} />
             </div>
-          ) : clothes.length === 0 ? (
-            <p className="text-xs text-gray-400">暂无衣服，请先添加衣服</p>
+          ) : filteredClothes.length === 0 ? (
+            <p className="text-xs text-gray-400">
+              {clothes.length === 0 ? '暂无衣服，请先添加衣服' : '没有符合条件的衣服'}
+            </p>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              {clothes.map(item => (
+              {filteredClothes.map(item => (
                 <div
                   key={item.id}
                   draggable
@@ -300,7 +353,7 @@ export default function OutfitCanvas() {
         {/* 右侧：画布区域 */}
         <div className="flex-1 flex flex-col">
           {/* 工具栏 */}
-          <div className="flex items-center justify-between p-3 bg-white/50 backdrop-blur-sm border-b border-gray-200">
+          <div className="flex items-center justify-between p-3 bg-white/50 backdrop-blur-sm border-b border-gray-200 select-none" style={{ cursor: 'default' }}>
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500">模特</span>
               <button
@@ -335,7 +388,7 @@ export default function OutfitCanvas() {
 
             {/* 操作提示 */}
             <div className="text-xs text-gray-400">
-              拖拽衣服到画布 · 点击选中后可拖动移动 · 鼠标滚轮缩放 · 双击删除
+              👉 拖拽衣服到画布 · 点击选中后可拖动或者旋转 · 鼠标滚轮缩放 · 双击删除 👈
             </div>
 
             <button
@@ -357,7 +410,7 @@ export default function OutfitCanvas() {
           {/* 画布区域 */}
           <div
             ref={canvasRef}
-            className="flex-1 relative overflow-hidden m-4 rounded-2xl bg-white/30 backdrop-blur border-2 border-dashed border-gray-200"
+            className="canvas-area flex-1 relative overflow-hidden m-4 rounded-2xl bg-white/30 backdrop-blur border-2 border-dashed border-gray-200"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onClick={handleCanvasClick}
@@ -455,14 +508,6 @@ export default function OutfitCanvas() {
               </div>
             ))}
 
-            {/* 空状态提示 */}
-            {canvasItems.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-center text-gray-400">
-                  <p className="text-sm">从左侧拖拽衣服到画布</p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

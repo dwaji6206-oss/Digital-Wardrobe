@@ -61,8 +61,9 @@ export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="glass-modal w-full max-w-4xl rounded-3xl overflow-hidden"
+        className="glass-modal w-full max-w-4xl rounded-3xl overflow-hidden select-none"
         onClick={e => e.stopPropagation()}
+        style={{ cursor: 'default' }}
       >
         {/* 关闭按钮 */}
         <button
@@ -74,12 +75,12 @@ export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
 
         <div className="flex flex-col md:flex-row">
           {/* 左侧：搭配大图 */}
-          <div className="md:w-1/2 bg-gray-100/50 p-6">
-            <div className="bg-white/30 rounded-2xl h-full min-h-[400px] flex items-center justify-center p-4">
+          <div className="md:w-1/2 bg-gray-100/50 p-4">
+            <div className="aspect-[3/4] w-full rounded-2xl overflow-hidden">
               <img
                 src={outfit.image_url}
                 alt={outfit.title || '搭配'}
-                className="w-full h-full object-contain max-h-[500px]"
+                className="w-full h-full object-cover"
               />
             </div>
           </div>
@@ -139,33 +140,42 @@ export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
                   </span>
                 </div>
 
-                {loadingClothes ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="animate-spin text-gray-400" size={20} />
-                  </div>
-                ) : outfitClothes.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {outfitClothes.map(cloth => (
-                      <div
-                        key={cloth.id}
-                        className="group relative bg-white/60 rounded-xl overflow-hidden aspect-[3/4] border border-gray-100"
-                      >
-                        <img
-                          src={cloth.image_url}
-                          alt={cloth.code}
-                          className="w-full h-full object-contain p-1"
+                <div className="max-h-[220px] overflow-y-auto bg-gray-50/50 rounded-xl p-3 border border-gray-100">
+                  {loadingClothes ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {outfit.clothes_ids?.slice(0, 6).map((_, index) => (
+                        <div
+                          key={index}
+                          className="bg-gray-100 rounded-xl aspect-[3/4] animate-pulse"
                         />
-                        <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm p-1.5 text-center">
-                          <span className="text-xs text-gray-600 font-medium">{cloth.code}</span>
+                      ))}
+                    </div>
+                  ) : outfitClothes.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {outfitClothes.map(cloth => (
+                        <div
+                          key={cloth.id}
+                          className="group relative bg-white/60 rounded-xl overflow-hidden aspect-[3/4] border border-gray-100"
+                          style={{ cursor: 'default' }}
+                        >
+                          <img
+                            src={cloth.image_url}
+                            alt={cloth.code}
+                            className="w-full h-full object-contain p-1 pointer-events-none"
+                            draggable={false}
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm p-1.5 text-center">
+                            <span className="text-xs text-gray-600 font-medium">{cloth.code}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">
-                    {outfit.clothes_ids?.length > 0 ? '加载中...' : '暂无衣服信息'}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">
+                      暂无衣服信息
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

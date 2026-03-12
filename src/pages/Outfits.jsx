@@ -57,7 +57,7 @@ export default function Outfits() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 select-none" style={{ cursor: 'default' }}>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* 标题和新建按钮 */}
@@ -152,7 +152,7 @@ export default function Outfits() {
           </div>
         ) : (
           /* 搭配网格 */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 select-none" style={{ cursor: 'default' }}>
             {filteredOutfits.map((outfit) => (
               <div
                 key={outfit.id}
@@ -164,7 +164,8 @@ export default function Outfits() {
                   <img
                     src={outfit.image_url}
                     alt={outfit.title || '搭配'}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none"
+                    draggable={false}
                   />
                 </div>
 

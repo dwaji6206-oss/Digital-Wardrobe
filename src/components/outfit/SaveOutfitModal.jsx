@@ -4,19 +4,21 @@
  */
 
 import { useState } from 'react';
-import { X, Loader2, Save } from 'lucide-react';
+import { X, Loader2, Save, Plus } from 'lucide-react';
+import { useOutfitStyles } from '../../hooks/useOutfitStyles';
 
 export default function SaveOutfitModal({ onClose, onSave, canvasItems }) {
+  const { styles, addStyle, fetchStyles } = useOutfitStyles();
   const [title, setTitle] = useState('');
   const [season, setSeason] = useState('');
-  const [style, setStyle] = useState('');
+  const [styleId, setStyleId] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showStyleModal, setShowStyleModal] = useState(false);
 
   // 季节选项
   const seasonOptions = ['春季', '夏季', '秋季', '冬季'];
-  const styleOptions = ['休闲', '正式', '运动', '复古', '简约', '街头', '商务', '约会', '度假'];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -29,10 +31,14 @@ export default function SaveOutfitModal({ onClose, onSave, canvasItems }) {
         .map(item => item.clothingId)
         .filter(id => id != null);
 
+      // 获取选中的风格名称
+      const selectedStyle = styles.find(s => s.id === styleId);
+      const styleName = selectedStyle?.name || '';
+
       await onSave({
         title,
         season,
-        style,
+        style: styleName,
         description,
         clothes_ids: clothesIds
       });
@@ -43,6 +49,13 @@ export default function SaveOutfitModal({ onClose, onSave, canvasItems }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  // 新建风格后刷新并选中
+  async function handleStyleCreated(newStyle) {
+    await fetchStyles();
+    setStyleId(newStyle.id);
+    setShowStyleModal(false);
   }
 
   return (
@@ -105,29 +118,37 @@ export default function SaveOutfitModal({ onClose, onSave, canvasItems }) {
             </div>
           </div>
 
-          {/* 风格 */}
+          {/* 风格选择 + 新建 */}
           <div>
             <label className="block text-sm text-gray-500 mb-1.5">
               风格 <span className="text-gray-300">(选填)</span>
             </label>
-            <div className="flex flex-wrap gap-2">
-              {styleOptions.map(opt => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setStyle(style === opt ? '' : opt)}
-                  className={`pill ${style === opt ? 'pill-active' : 'pill-inactive'}`}
-                >
-                  {opt}
-                </button>
-              ))}
+            <div className="flex gap-2">
+              <select
+                value={styleId}
+                onChange={(e) => setStyleId(e.target.value)}
+                className={`select-glass flex-1 ${styleId ? 'text-gray-900' : 'text-gray-400'}`}
+              >
+                <option value="">请选择</option>
+                {styles.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowStyleModal(true)}
+                className="px-3 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center"
+                title="新建风格"
+              >
+                <Plus size={18} />
+              </button>
             </div>
           </div>
 
-          {/* 简介 */}
+          {/* 搭配灵感 */}
           <div>
             <label className="block text-sm text-gray-500 mb-1.5">
-              简介 <span className="text-gray-300">(选填，300字内)</span>
+              搭配灵感 <span className="text-gray-300">(选填，300字内)</span>
             </label>
             <textarea
               value={description}
@@ -157,6 +178,73 @@ export default function SaveOutfitModal({ onClose, onSave, canvasItems }) {
                 <Save size={18} className="mr-2" />
               )}
               保存搭配
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 新建风格弹窗 */}
+      {showStyleModal && (
+        <CreateStyleModal
+          onClose={() => setShowStyleModal(false)}
+          onCreate={handleStyleCreated}
+          onAdd={addStyle}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * 新建风格弹窗组件
+ */
+function CreateStyleModal({ onClose, onCreate, onAdd }) {
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const newItem = await onAdd(name);
+      onCreate(newItem);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={onClose}>
+      <div className="glass-modal w-full max-w-sm rounded-2xl p-5" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-light tracking-wider mb-4">新建风格</h3>
+
+        {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-xl mb-4">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">风格名称</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="如：休闲、正式、运动"
+              maxLength={10}
+              className="input-glass"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 btn-secondary">
+              取消
+            </button>
+            <button type="submit" disabled={submitting || !name.trim()} className="flex-1 btn-primary">
+              {submitting ? <Loader2 className="animate-spin mx-auto" size={18} /> : '保存'}
             </button>
           </div>
         </form>

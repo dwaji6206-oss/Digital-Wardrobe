@@ -7,6 +7,13 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+/* 禁用画布区域的文本选择 */
+.canvas-area {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default !important;
+}
+
 /* 毛玻璃基础类 */
 @layer components {
   .glass {
