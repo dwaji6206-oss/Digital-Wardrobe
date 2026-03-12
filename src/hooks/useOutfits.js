@@ -47,9 +47,9 @@ export function useOutfits() {
     const response = await fetch(dataUrl);
     const blob = await response.blob();
 
-    // 生成文件路径
+    // 生成文件路径（只使用 ASCII 字符，避免 Supabase Storage 报错）
     const timestamp = Date.now();
-    const safeTitle = (title || 'outfit').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').slice(0, 20);
+    const safeTitle = (title || 'outfit').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20) || 'outfit';
     const filePath = `${user.id}/${safeTitle}_${timestamp}.png`;
 
     const { error: uploadError } = await supabase
