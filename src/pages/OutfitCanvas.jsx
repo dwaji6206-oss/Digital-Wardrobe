@@ -14,7 +14,7 @@ import Navbar from '../components/layout/Navbar';
 import SaveOutfitModal from '../components/outfit/SaveOutfitModal';
 import { useClothes } from '../hooks/useClothes';
 import { useOutfits } from '../hooks/useOutfits';
-import { Upload, Save, Loader2, Trash2, RotateCcw, CheckCircle } from 'lucide-react';
+import { Upload, Save, Loader2, CheckCircle } from 'lucide-react';
 
 export default function OutfitCanvas() {
   const navigate = useNavigate();
@@ -333,32 +333,10 @@ export default function OutfitCanvas() {
               />
             </div>
 
-            {/* 选中衣服的操作按钮 */}
-            {selectedId && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => updateItemRotation(selectedId, -15)}
-                  className="p-2 bg-white border border-gray-200 rounded-full hover:bg-gray-50"
-                  title="逆时针旋转"
-                >
-                  <RotateCcw size={14} className="transform rotate-180" />
-                </button>
-                <button
-                  onClick={() => updateItemRotation(selectedId, 15)}
-                  className="p-2 bg-white border border-gray-200 rounded-full hover:bg-gray-50"
-                  title="顺时针旋转"
-                >
-                  <RotateCcw size={14} />
-                </button>
-                <button
-                  onClick={deleteSelected}
-                  className="p-2 bg-red-50 border border-red-200 text-red-600 rounded-full hover:bg-red-100"
-                  title="删除"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            )}
+            {/* 操作提示 */}
+            <div className="text-xs text-gray-400">
+              拖拽衣服到画布 · 点击选中后可拖动移动 · 鼠标滚轮缩放 · 双击删除
+            </div>
 
             <button
               onClick={() => setShowSaveModal(true)}
@@ -485,11 +463,6 @@ export default function OutfitCanvas() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* 操作提示 */}
-          <div className="text-center text-xs text-gray-400 pb-2">
-            拖拽衣服到画布 · 点击选中后可拖动移动 · 鼠标滚轮缩放 · 双击删除 · 点击按钮旋转
           </div>
         </div>
       </div>
