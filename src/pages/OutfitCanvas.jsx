@@ -5,15 +5,21 @@
  * - 左侧：衣服选择网格（可拖拽）
  * - 右侧：画布区域（模特 + 可拖入的衣服）
  * - 拖拽移动、滚轮缩放、旋转
+ * - 保存搭配到数据库
  */
 
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
+import SaveOutfitModal from '../components/outfit/SaveOutfitModal';
 import { useClothes } from '../hooks/useClothes';
-import { Upload, Save, Loader2, Trash2, RotateCcw } from 'lucide-react';
+import { useOutfits } from '../hooks/useOutfits';
+import { Upload, Save, Loader2, Trash2, RotateCcw, CheckCircle } from 'lucide-react';
 
 export default function OutfitCanvas() {
+  const navigate = useNavigate();
   const { clothes, loading } = useClothes();
+  const { addOutfit, uploadOutfitImage } = useOutfits();
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -22,6 +28,8 @@ export default function OutfitCanvas() {
   const [canvasItems, setCanvasItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [isRotating, setIsRotating] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // 处理上传模特图片
   function handleModelUpload(e) {
@@ -56,7 +64,7 @@ export default function OutfitCanvas() {
 
       const newItem = {
         id: Date.now(),
-        clothingId: clothingData.id,
+        clothingId: clothingData.id, // 保留衣服的数据库ID
         image_url: clothingData.image_url,
         x,
         y,
@@ -155,14 +163,93 @@ export default function OutfitCanvas() {
     document.addEventListener('mouseup', handleMouseUp);
   }
 
-  // 保存搭配
-  async function handleSave() {
+  // 生成画布截图
+  async function generateCanvasImage() {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const containerRect = canvasRef.current.getBoundingClientRect();
+
+    // 设置画布尺寸
+    canvas.width = containerRect.width * 2; // 2x for retina
+    canvas.height = containerRect.height * 2;
+    ctx.scale(2, 2);
+
+    // 绘制背景
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, containerRect.width, containerRect.height);
+
+    // 绘制模特图片
+    const modelSrc = modelImage || '/model.png';
+    await new Promise((resolve) => {
+      const modelImg = new Image();
+      modelImg.crossOrigin = 'anonymous';
+      modelImg.onload = () => {
+        const scale = Math.min(
+          containerRect.width * 0.9 / modelImg.width,
+          containerRect.height * 0.9 / modelImg.height
+        );
+        const w = modelImg.width * scale;
+        const h = modelImg.height * scale;
+        const x = (containerRect.width - w) / 2;
+        const y = (containerRect.height - h) / 2;
+        ctx.drawImage(modelImg, x, y, w, h);
+        resolve();
+      };
+      modelImg.onerror = resolve;
+      modelImg.src = modelSrc;
+    });
+
+    // 绘制所有衣服
+    for (const item of canvasItems) {
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          ctx.save();
+          ctx.translate(item.x, item.y);
+          ctx.rotate(item.rotation * Math.PI / 180);
+          ctx.scale(item.scale, item.scale);
+          const w = 120;
+          const h = (img.height / img.width) * w;
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          ctx.restore();
+          resolve();
+        };
+        img.onerror = resolve;
+        img.src = item.image_url;
+      });
+    }
+
+    return canvas.toDataURL('image/png');
+  }
+
+  // 处理保存搭配
+  async function handleSave(formData) {
     setSaving(true);
     try {
-      console.log('保存搭配:', { modelImage, items: canvasItems });
-      alert('搭配已保存！（待实现数据库存储）');
+      // 生成画布截图
+      const imageDataUrl = await generateCanvasImage();
+
+      // 上传图片到存储桶
+      const imageUrl = await uploadOutfitImage(imageDataUrl, formData.title);
+
+      // 保存到数据库
+      await addOutfit({
+        ...formData,
+        image_url: imageUrl
+      });
+
+      // 显示成功状态
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setShowSaveModal(false);
+        setCanvasItems([]);
+        setSelectedId(null);
+      }, 1500);
     } catch (err) {
       console.error('保存失败:', err);
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -190,7 +277,11 @@ export default function OutfitCanvas() {
                   key={item.id}
                   draggable
                   onDragStart={(e) => {
-                    e.dataTransfer.setData('clothing', JSON.stringify(item));
+                    e.dataTransfer.setData('clothing', JSON.stringify({
+                      id: item.id,
+                      image_url: item.image_url,
+                      code: item.code
+                    }));
                   }}
                   className="aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden cursor-grab hover:shadow-lg transition-shadow"
                 >
@@ -270,12 +361,18 @@ export default function OutfitCanvas() {
             )}
 
             <button
-              onClick={handleSave}
-              disabled={saving}
+              onClick={() => setShowSaveModal(true)}
+              disabled={saving || canvasItems.length === 0}
               className="flex items-center px-4 py-2 bg-gray-900 text-white text-sm rounded-full hover:bg-gray-800 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="animate-spin mr-2" size={16} /> : <Save size={16} className="mr-2" />}
-              保存搭配
+              {saving ? (
+                <Loader2 className="animate-spin mr-2" size={16} />
+              ) : saveSuccess ? (
+                <CheckCircle size={16} className="mr-2 text-green-400" />
+              ) : (
+                <Save size={16} className="mr-2" />
+              )}
+              {saveSuccess ? '已保存' : '保存搭配'}
             </button>
           </div>
 
@@ -379,6 +476,15 @@ export default function OutfitCanvas() {
                 </div>
               </div>
             ))}
+
+            {/* 空状态提示 */}
+            {canvasItems.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center text-gray-400">
+                  <p className="text-sm">从左侧拖拽衣服到画布</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 操作提示 */}
@@ -387,6 +493,15 @@ export default function OutfitCanvas() {
           </div>
         </div>
       </div>
+
+      {/* 保存搭配弹窗 */}
+      {showSaveModal && (
+        <SaveOutfitModal
+          onClose={() => setShowSaveModal(false)}
+          onSave={handleSave}
+          canvasItems={canvasItems}
+        />
+      )}
     </div>
   );
 }

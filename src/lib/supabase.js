@@ -8,6 +8,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export const SUPABASE_CONFIG = {
   URL: SUPABASE_URL,
   STORAGE_BUCKETS: {
-    CLOTHES: 'clothes-images'
+    CLOTHES: 'clothes-images',
+    OUTFITS: 'outfits-images'
   }
 };
