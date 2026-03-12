@@ -3,19 +3,24 @@
  * 展示搭配的完整信息，包含搭配图片、详细信息和组成衣服列表
  */
 
-import { useState, useEffect } from 'react';
-import { X, Trash2, Loader2, Calendar, Sun, Sparkles, FileText, Shirt } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Trash2, Loader2, Calendar, Sun, Sparkles, FileText, Shirt, Camera, Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { SUPABASE_CONFIG } from '../../lib/supabase';
 
-export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
+export default function OutfitDetailModal({ outfit, onClose, onDelete, onUpdateOutfit }) {
   const [deleting, setDeleting] = useState(false);
   const [loadingClothes, setLoadingClothes] = useState(false);
   const [outfitClothes, setOutfitClothes] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [feedbackImages, setFeedbackImages] = useState(outfit.feedback_images || []);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (outfit?.clothes_ids?.length > 0) {
       fetchOutfitClothes();
     }
+    setFeedbackImages(outfit.feedback_images || []);
   }, [outfit]);
 
   async function fetchOutfitClothes() {
@@ -44,6 +49,86 @@ export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
       alert(err.message);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleUploadFeedback(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('用户未登录');
+
+      const timestamp = Date.now();
+      const filePath = `${user.id}/feedback_${timestamp}.png`;
+
+      const { error: uploadError } = await supabase
+        .storage.from(SUPABASE_CONFIG.STORAGE_BUCKETS.OUTFITS)
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase
+        .storage.from(SUPABASE_CONFIG.STORAGE_BUCKETS.OUTFITS)
+        .getPublicUrl(filePath);
+
+      // 更新数据库
+      const newImages = [...feedbackImages, publicUrl];
+      const { error: updateError } = await supabase
+        .from('outfits')
+        .update({ feedback_images: newImages })
+        .eq('id', outfit.id);
+
+      if (updateError) throw updateError;
+
+      setFeedbackImages(newImages);
+      if (onUpdateOutfit) {
+        onUpdateOutfit({ ...outfit, feedback_images: newImages });
+      }
+    } catch (err) {
+      console.error('上传反馈图片失败:', err);
+      alert(err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleDeleteFeedback(imageUrl) {
+    if (!confirm('确定要删除这张反馈图片吗？')) return;
+
+    try {
+      const newImages = feedbackImages.filter(url => url !== imageUrl);
+
+      const { error: updateError } = await supabase
+        .from('outfits')
+        .update({ feedback_images: newImages })
+        .eq('id', outfit.id);
+
+      if (updateError) throw updateError;
+
+      // 尝试删除存储桶中的图片
+      try {
+        const url = new URL(imageUrl);
+        const pathParts = url.pathname.split('/');
+        const bucketIndex = pathParts.findIndex(p => p === 'outfits-images');
+        if (bucketIndex !== -1) {
+          const filePath = pathParts.slice(bucketIndex + 1).join('/');
+          await supabase.storage.from(SUPABASE_CONFIG.STORAGE_BUCKETS.OUTFITS).remove([filePath]);
+        }
+      } catch (e) {
+        console.warn('删除图片文件失败:', e);
+      }
+
+      setFeedbackImages(newImages);
+      if (onUpdateOutfit) {
+        onUpdateOutfit({ ...outfit, feedback_images: newImages });
+      }
+    } catch (err) {
+      console.error('删除反馈图片失败:', err);
+      alert(err.message);
     }
   }
 
@@ -118,12 +203,12 @@ export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
                 />
               )}
 
-              {/* 简介 */}
+              {/* 搭配灵感 */}
               {outfit.description && (
                 <div className="pt-2">
                   <div className="flex items-center gap-2 mb-2">
                     <FileText size={16} className="text-gray-400" />
-                    <span className="text-sm text-gray-400">简介</span>
+                    <span className="text-sm text-gray-400">搭配灵感</span>
                   </div>
                   <p className="text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-3">
                     {outfit.description}
@@ -140,7 +225,7 @@ export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
                   </span>
                 </div>
 
-                <div className="max-h-[220px] overflow-y-auto bg-gray-50/50 rounded-xl p-3 border border-gray-100">
+                <div className="max-h-[180px] overflow-y-auto bg-gray-50/50 rounded-xl p-3 border border-gray-100">
                   {loadingClothes ? (
                     <div className="grid grid-cols-3 gap-2">
                       {outfit.clothes_ids?.slice(0, 6).map((_, index) => (
@@ -173,6 +258,67 @@ export default function OutfitDetailModal({ outfit, onClose, onDelete }) {
                   ) : (
                     <div className="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">
                       暂无衣服信息
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 反馈区域 */}
+              <div className="pt-4 border-t border-gray-200/50">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Camera size={16} className="text-gray-400" />
+                    <span className="text-sm text-gray-400">
+                      穿搭反馈 ({feedbackImages.length})
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-full hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {uploading ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Plus size={12} />
+                    )}
+                    上传
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUploadFeedback}
+                    className="hidden"
+                  />
+                </div>
+
+                <div className="max-h-[180px] overflow-y-auto bg-gray-50/50 rounded-xl p-3 border border-gray-100">
+                  {feedbackImages.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {feedbackImages.map((url, index) => (
+                        <div
+                          key={index}
+                          className="group relative bg-white/60 rounded-xl overflow-hidden aspect-[3/4] border border-gray-100"
+                        >
+                          <img
+                            src={url}
+                            alt={`反馈 ${index + 1}`}
+                            className="w-full h-full object-cover pointer-events-none"
+                            draggable={false}
+                          />
+                          <button
+                            onClick={() => handleDeleteFeedback(url)}
+                            className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-400 text-center py-4">
+                      点击上方"上传"添加穿着实景照片
                     </div>
                   )}
                 </div>

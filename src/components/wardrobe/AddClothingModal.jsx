@@ -35,10 +35,6 @@ export default function AddClothingModal({ onClose, onSuccess }) {
       setError('请选择图片文件');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('图片大小不能超过 10MB');
-      return;
-    }
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
     setError(null);
@@ -114,7 +110,7 @@ export default function AddClothingModal({ onClose, onSuccess }) {
                   <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                   <ImageIcon className="mx-auto text-gray-300 mb-2" size={40} />
                   <p className="text-sm text-gray-500">点击上传图片</p>
-                  <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG，最大 10MB</p>
+                  <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG</p>
                 </label>
               )}
             </div>

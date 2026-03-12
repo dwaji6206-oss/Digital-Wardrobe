@@ -49,6 +49,11 @@ export default function Outfits() {
     }
   }
 
+  // 更新搭配（用于反馈图片更新后同步状态）
+  function handleUpdateOutfit(updatedOutfit) {
+    setSelectedOutfit(updatedOutfit);
+  }
+
   // 格式化日期
   function formatDate(dateStr) {
     if (!dateStr) return '';
@@ -204,6 +209,7 @@ export default function Outfits() {
           outfit={selectedOutfit}
           onClose={() => setSelectedOutfit(null)}
           onDelete={handleDelete}
+          onUpdateOutfit={handleUpdateOutfit}
         />
       )}
     </div>

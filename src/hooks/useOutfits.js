@@ -127,5 +127,105 @@ export function useOutfits() {
     }
   }
 
-  return { outfits, loading, error, fetchOutfits, addOutfit, deleteOutfit, uploadOutfitImage };
+  // 上传反馈图片
+  async function uploadFeedbackImage(file) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('用户未登录');
+
+    const timestamp = Date.now();
+    const filePath = `${user.id}/feedback_${timestamp}.png`;
+
+    const { error: uploadError } = await supabase
+      .storage.from(SUPABASE_CONFIG.STORAGE_BUCKETS.OUTFITS)
+      .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase
+      .storage.from(SUPABASE_CONFIG.STORAGE_BUCKETS.OUTFITS)
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  }
+
+  // 添加反馈图片到搭配
+  async function addFeedbackImage(outfitId, imageUrl) {
+    try {
+      setError(null);
+      const outfit = outfits.find(o => o.id === outfitId);
+      if (!outfit) throw new Error('搭配不存在');
+
+      const currentImages = outfit.feedback_images || [];
+      const newImages = [...currentImages, imageUrl];
+
+      const { error: updateError } = await supabase
+        .from('outfits')
+        .update({ feedback_images: newImages })
+        .eq('id', outfitId);
+
+      if (updateError) throw updateError;
+
+      // 更新本地状态
+      setOutfits(outfits.map(o =>
+        o.id === outfitId ? { ...o, feedback_images: newImages } : o
+      ));
+    } catch (err) {
+      console.error('添加反馈图片失败:', err);
+      setError(err.message);
+      throw err;
+    }
+  }
+
+  // 删除反馈图片
+  async function removeFeedbackImage(outfitId, imageUrl) {
+    try {
+      setError(null);
+      const outfit = outfits.find(o => o.id === outfitId);
+      if (!outfit) throw new Error('搭配不存在');
+
+      const newImages = (outfit.feedback_images || []).filter(url => url !== imageUrl);
+
+      const { error: updateError } = await supabase
+        .from('outfits')
+        .update({ feedback_images: newImages })
+        .eq('id', outfitId);
+
+      if (updateError) throw updateError;
+
+      // 尝试删除存储桶中的图片
+      try {
+        const url = new URL(imageUrl);
+        const pathParts = url.pathname.split('/');
+        const bucketIndex = pathParts.findIndex(p => p === 'outfits-images');
+        if (bucketIndex !== -1) {
+          const filePath = pathParts.slice(bucketIndex + 1).join('/');
+          await supabase.storage.from(SUPABASE_CONFIG.STORAGE_BUCKETS.OUTFITS).remove([filePath]);
+        }
+      } catch (e) {
+        console.warn('删除反馈图片文件失败:', e);
+      }
+
+      // 更新本地状态
+      setOutfits(outfits.map(o =>
+        o.id === outfitId ? { ...o, feedback_images: newImages } : o
+      ));
+    } catch (err) {
+      console.error('删除反馈图片失败:', err);
+      setError(err.message);
+      throw err;
+    }
+  }
+
+  return {
+    outfits,
+    loading,
+    error,
+    fetchOutfits,
+    addOutfit,
+    deleteOutfit,
+    uploadOutfitImage,
+    uploadFeedbackImage,
+    addFeedbackImage,
+    removeFeedbackImage
+  };
 }
